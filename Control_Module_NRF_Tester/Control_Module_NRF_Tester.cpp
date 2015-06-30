@@ -35,11 +35,13 @@ void enableInt1( void ){
 
 ISR(INT1_vect){
 	USART_sendString("int\n\r");
+	PORTB ^= (1<<DDB0);
 	if(radio.available()){
 		USART_sendString("Data available!\n\r");
-		radio.read((uint8_t*)receiveBuffer, 1);
+		radio.read((uint8_t*)receiveBuffer, 32);
+		receiveBuffer[31]= '\0';
 		USART_sendString("Received: ");
-		USART_SendByte((uint8_t)receiveBuffer[0]);
+		USART_sendString((const char*)receiveBuffer);
 		USART_sendString("\n\r");
 	}
 }
@@ -64,13 +66,14 @@ int main(void)
 	
 	// Single radio pipe address for the 2 nodes to communicate.
 	const uint64_t pipe = 0xE8E8F0F0E1LL;
+	const uint64_t electronicStrikePipe = 0xE8E8F0F0E5LL;
 	
 
 	PORTB |= (1<<DDB0);
 	
 	char NRFStatus = 0xFF;
 	uint8_t command;
-	uint8_t buff[5] = {0x0F, 0XA1, 0X33, 0X4C, 0X79};
+	uint8_t buff[5] = {'O', 0XA1, 0X33, 0X4C, 0X79};
 	while(1)
 	{
 		command = USART_ReceiveByte();
@@ -98,14 +101,18 @@ int main(void)
 			USART_sendString("\n\r");
 		}
 		else if(command=='O'){
+			USART_sendString("Stopping listen if necessary.\n\r");
+			radio.stopListening();
 			USART_sendString("Opening writing pipe.\n\r");
-			radio.openWritingPipe(pipe);
+			radio.openWritingPipe(electronicStrikePipe);
 			USART_sendString("After setting: ");
 			radio.read_register(RX_ADDR_P0, buff, 5);
 			USART_sendHexArray(buff,5);
 			USART_sendString("\n\r");
 		}
 		else if(command=='W'){
+			USART_sendString("Write what? (1 letter) ");
+			buff[0] = USART_ReceiveByte();
 			USART_sendString("Writing...\n\r");
 			bool result = radio.write(buff, 5);
 			if(result){
@@ -133,6 +140,15 @@ int main(void)
 			USART_sendString("Register value: ");
 			USART_SendHexByte(NRFStatus);
 			USART_sendString("\n\r");
+		}
+		else if(command=='G') {
+			if(radio.available()){
+			USART_sendString("Data available!\n\r");
+			radio.read((uint8_t*)receiveBuffer, 1);
+			USART_sendString("Received: ");
+			USART_SendByte((uint8_t)receiveBuffer[0]);
+			USART_sendString("\n\r");
+			}
 		}
 		else{
 			USART_sendString("command not recognized.\n\r");
